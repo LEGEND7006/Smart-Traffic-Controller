@@ -112,6 +112,7 @@ export function LiveSimulation({
             onSelectVehicle={onSelectVehicle}
             onClearSelectedVehicle={onClearSelectedVehicle}
             dayNightMode={settings?.dayNightMode || 'night'}
+            vehicleCount={vehicles?.length || 0}
             onToggleDayNight={() =>
               onUpdateSettings({
                 dayNightMode: settings?.dayNightMode === 'night' ? 'day' : 'night'

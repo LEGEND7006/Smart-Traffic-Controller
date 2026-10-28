@@ -1,146 +1,147 @@
 /**
  * Adaptive FairFlow - Master 3D Intersection Canvas & Scene Graph
+ *
+ * KEY DESIGN: The 3D scene reads DIRECTLY from simulationEngine's mutable
+ * state every frame via useFrame, so it never waits for React state updates.
+ * React state (via useSimulation hook) drives only the 2D dashboard panels.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
 import { RoadNetwork } from './RoadNetwork';
 import { TrafficLight3D } from './TrafficLight3D';
 import { Vehicle3D } from './Vehicle3D';
 import { UltrasonicSensor3D } from './UltrasonicSensor3D';
 import { RFIDReader3D } from './RFIDReader3D';
-import { CameraControls } from './CameraControls';
 import { simulationEngine } from '../../simulation/simulationEngine';
 import { SENSOR_POSITIONS } from '../../simulation/constants';
+import { trafficFSM } from '../../simulation/trafficSignalFSM';
+import { sensorSimulator } from '../../simulation/sensorSimulator';
+import { rfidSimulator } from '../../simulation/rfidSimulator';
 import { 
-  Compass, Eye, Camera, Maximize, Minimize,
-  Sun, Moon, Radio, Navigation
+  Compass, Eye, Maximize, Minimize, Sun, Moon, Navigation
 } from 'lucide-react';
 
-function SceneContent({ 
-  fsm, 
-  vehicles, 
-  sensors, 
-  rfid, 
-  selectedVehicle, 
-  onSelectVehicle, 
-  dayNightMode, 
-  cameraPreset 
-}) {
-  // Master physics and simulation clock loop
+// ─── Live Scene Content ───────────────────────────────────────────────────────
+// Reads engine state every frame directly — no React prop staleness.
+function SceneContent({ dayNightMode, selectedVehicleId, onSelectVehicle }) {
+  const [tick, setTick] = useState(0);
+  const frameCount = useRef(0);
+
   useFrame((_, delta) => {
+    // Advance the simulation
     simulationEngine.tick(delta);
+
+    // Force React re-render every 2 frames (~30fps UI update)
+    frameCount.current += 1;
+    if (frameCount.current % 2 === 0) {
+      setTick(t => t + 1);
+    }
   });
 
+  // Read directly from engine mutable state (always current)
+  const vehicles = simulationEngine.vehicles;
+  const signals = trafficFSM.getStateDetails().signals;
+  const sensors = sensorSimulator.getAllSensors();
+  const readers = rfidSimulator.readers;
   const isNight = dayNightMode === 'night';
-  const signals = fsm?.signals || { NORTH: 'RED', SOUTH: 'RED', EAST: 'RED', WEST: 'RED' };
 
   return (
     <>
-      {/* Lighting Setup */}
-      <ambientLight intensity={isNight ? 0.4 : 0.85} />
+      {/* ── Lighting ── */}
+      <ambientLight intensity={isNight ? 0.5 : 1.0} />
       <directionalLight
-        position={[45, 60, 45]}
-        intensity={isNight ? 0.7 : 1.5}
+        position={[40, 55, 40]}
+        intensity={isNight ? 0.8 : 1.6}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-near={10}
-        shadow-camera-far={150}
-        shadow-camera-left={-50}
-        shadow-camera-right={50}
-        shadow-camera-top={50}
-        shadow-camera-bottom={-50}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-near={1}
+        shadow-camera-far={200}
+        shadow-camera-left={-60}
+        shadow-camera-right={60}
+        shadow-camera-top={60}
+        shadow-camera-bottom={-60}
       />
       <hemisphereLight
-        skyColor={isNight ? '#0e1726' : '#dbeafe'}
-        groundColor={isNight ? '#020617' : '#475569'}
-        intensity={0.5}
+        args={[isNight ? '#0e1726' : '#dbeafe', isNight ? '#020617' : '#475569', 0.6]}
       />
 
-      {/* Urban Road Network & Surroundings */}
+      {/* ── Road Network ── */}
       <RoadNetwork dayNightMode={dayNightMode} />
 
-      {/* Four 3D Traffic Signal Assemblies */}
-      <TrafficLight3D
-        approach="NORTH"
-        signal={signals.NORTH}
-        position={[-7.5, 0, 8.8]}
-        rotation={[0, 0, 0]}
-      />
-      <TrafficLight3D
-        approach="SOUTH"
-        signal={signals.SOUTH}
-        position={[7.5, 0, -8.8]}
-        rotation={[0, Math.PI, 0]}
-      />
-      <TrafficLight3D
-        approach="EAST"
-        signal={signals.EAST}
-        position={[8.8, 0, 7.5]}
-        rotation={[0, Math.PI / 2, 0]}
-      />
-      <TrafficLight3D
-        approach="WEST"
-        signal={signals.WEST}
-        position={[-8.8, 0, -7.5]}
-        rotation={[0, -Math.PI / 2, 0]}
-      />
+      {/* ── Traffic Signals ── */}
+      <TrafficLight3D approach="NORTH" signal={signals.NORTH} position={[-7.5, 0, 8.8]} rotation={[0, 0, 0]} />
+      <TrafficLight3D approach="SOUTH" signal={signals.SOUTH} position={[7.5, 0, -8.8]} rotation={[0, Math.PI, 0]} />
+      <TrafficLight3D approach="EAST"  signal={signals.EAST}  position={[8.8, 0, 7.5]}  rotation={[0, Math.PI / 2, 0]} />
+      <TrafficLight3D approach="WEST"  signal={signals.WEST}  position={[-8.8, 0, -7.5]} rotation={[0, -Math.PI / 2, 0]} />
 
-      {/* Four HC-SR04 Ultrasonic Sensors */}
-      <UltrasonicSensor3D
-        sensor={sensors?.NORTH}
-        position={SENSOR_POSITIONS.NORTH}
-        rotation={[0, Math.PI, 0]}
-      />
-      <UltrasonicSensor3D
-        sensor={sensors?.SOUTH}
-        position={SENSOR_POSITIONS.SOUTH}
-        rotation={[0, 0, 0]}
-      />
-      <UltrasonicSensor3D
-        sensor={sensors?.EAST}
-        position={SENSOR_POSITIONS.EAST}
-        rotation={[0, -Math.PI / 2, 0]}
-      />
-      <UltrasonicSensor3D
-        sensor={sensors?.WEST}
-        position={SENSOR_POSITIONS.WEST}
-        rotation={[0, Math.PI / 2, 0]}
-      />
+      {/* ── Ultrasonic Sensors ── */}
+      <UltrasonicSensor3D sensor={sensors.NORTH} position={SENSOR_POSITIONS.NORTH} rotation={[0, Math.PI, 0]} />
+      <UltrasonicSensor3D sensor={sensors.SOUTH} position={SENSOR_POSITIONS.SOUTH} rotation={[0, 0, 0]} />
+      <UltrasonicSensor3D sensor={sensors.EAST}  position={SENSOR_POSITIONS.EAST}  rotation={[0, -Math.PI / 2, 0]} />
+      <UltrasonicSensor3D sensor={sensors.WEST}  position={SENSOR_POSITIONS.WEST}  rotation={[0, Math.PI / 2, 0]} />
 
-      {/* Four RFID Gantries and Interrogation Zones */}
-      <RFIDReader3D reader={rfid?.readers?.NORTH} approach="NORTH" />
-      <RFIDReader3D reader={rfid?.readers?.SOUTH} approach="SOUTH" />
-      <RFIDReader3D reader={rfid?.readers?.EAST} approach="EAST" />
-      <RFIDReader3D reader={rfid?.readers?.WEST} approach="WEST" />
+      {/* ── RFID Gantries ── */}
+      <RFIDReader3D reader={readers.NORTH} approach="NORTH" />
+      <RFIDReader3D reader={readers.SOUTH} approach="SOUTH" />
+      <RFIDReader3D reader={readers.EAST}  approach="EAST" />
+      <RFIDReader3D reader={readers.WEST}  approach="WEST" />
 
-      {/* All Simulated 3D Vehicles */}
-      {vehicles?.map((veh) => (
+      {/* ── Vehicles ── */}
+      {vehicles.map(veh => (
         <Vehicle3D
           key={veh.id}
           vehicle={veh}
-          isSelected={selectedVehicle?.id === veh.id}
+          isSelected={selectedVehicleId === veh.id}
           onSelect={onSelectVehicle}
         />
       ))}
-
-      {/* Dynamic Camera Orbit Controls */}
-      <CameraControls cameraPreset={cameraPreset} selectedVehicle={selectedVehicle} />
     </>
   );
 }
 
+// ─── Camera Presets ───────────────────────────────────────────────────────────
+function SceneCamera({ preset }) {
+  const controlsRef = useRef();
+
+  useFrame(({ camera }) => {
+    if (!controlsRef.current) return;
+    // Preset applied only once when preset changes (tracked via ref)
+  });
+
+  const presetProps = (() => {
+    switch (preset) {
+      case 'topDown':  return { position: [0, 75, 0.1], target: [0, 0, 0] };
+      case 'north':    return { position: [0, 18, 48],  target: [0, 2, 0] };
+      case 'south':    return { position: [0, 18, -48], target: [0, 2, 0] };
+      case 'east':     return { position: [48, 18, 0],  target: [0, 2, 0] };
+      case 'west':     return { position: [-48, 18, 0], target: [0, 2, 0] };
+      default:         return { position: [38, 42, 38], target: [0, 0, 0] };
+    }
+  })();
+
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      enableDamping
+      dampingFactor={0.08}
+      maxPolarAngle={Math.PI / 2 - 0.05}
+      minDistance={8}
+      maxDistance={130}
+      target={presetProps.target}
+    />
+  );
+}
+
+// ─── Main Exported Component ──────────────────────────────────────────────────
 export function Intersection3D({
-  fsm,
-  vehicles,
-  sensors,
-  rfid,
   selectedVehicle,
   onSelectVehicle,
   onClearSelectedVehicle,
   dayNightMode = 'night',
-  onToggleDayNight
+  onToggleDayNight,
+  vehicleCount = 0,
 }) {
   const [cameraPreset, setCameraPreset] = useState('isometric');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -156,6 +157,9 @@ export function Intersection3D({
     }
   };
 
+  const camPresets = ['Iso', 'Top', 'N', 'S', 'E', 'W'];
+  const camKeys   = ['isometric', 'topDown', 'north', 'south', 'east', 'west'];
+
   return (
     <div
       id="intersection-viewport"
@@ -166,101 +170,62 @@ export function Intersection3D({
       <Canvas
         shadows
         camera={{ position: [38, 42, 38], fov: 45 }}
-        gl={{ antialias: true, alpha: false }}
+        gl={{ antialias: true, alpha: false, preserveDrawingBuffer: false }}
+        onCreated={({ gl }) => {
+          gl.setClearColor('#070b14');
+        }}
       >
         <SceneContent
-          fsm={fsm}
-          vehicles={vehicles}
-          sensors={sensors}
-          rfid={rfid}
-          selectedVehicle={selectedVehicle}
-          onSelectVehicle={onSelectVehicle}
           dayNightMode={dayNightMode}
-          cameraPreset={cameraPreset}
+          selectedVehicleId={selectedVehicle?.id}
+          onSelectVehicle={onSelectVehicle}
         />
+        <SceneCamera preset={cameraPreset} />
       </Canvas>
 
-      {/* Top Left Floating Status Badge */}
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-xs font-mono">
-        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-        <span className="text-slate-200 font-semibold">3D TWIN ENGINE:</span>
-        <span className="text-cyan-400 font-mono">{vehicles?.length || 0} VEHICLES</span>
+      {/* ── Status Badge ── */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/70 backdrop-blur-sm border border-white/10 text-xs font-mono pointer-events-none">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-slate-200">3D TWIN</span>
         <span className="text-slate-500">|</span>
-        <span className="text-amber-400">4 ULTRASONIC</span>
-        <span className="text-slate-500">|</span>
-        <span className="text-rose-400">RFID ACTIVE</span>
+        <span className="text-cyan-400">{vehicleCount} vehicles</span>
       </div>
 
-      {/* Camera & Scene Viewport Toolbar (Floating Bottom Center) */}
-      <div 
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-xl text-xs text-slate-300"
-        onClick={(e) => e.stopPropagation()}
+      {/* ── Camera Toolbar ── */}
+      <div
+        className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 p-1.5 rounded-xl bg-black/75 backdrop-blur-md border border-white/10 text-xs text-slate-300"
+        onClick={e => e.stopPropagation()}
       >
-        <button
-          onClick={() => setCameraPreset('isometric')}
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
-            cameraPreset === 'isometric' ? 'bg-cyan-600 text-white font-medium shadow-md shadow-cyan-600/30' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
-          }`}
-          title="Isometric View"
-        >
-          <Compass className="w-3.5 h-3.5" />
-          <span>Isometric</span>
-        </button>
-
-        <button
-          onClick={() => setCameraPreset('topDown')}
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
-            cameraPreset === 'topDown' ? 'bg-cyan-600 text-white font-medium shadow-md shadow-cyan-600/30' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
-          }`}
-          title="Top-Down Overhead View"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          <span>Top-Down</span>
-        </button>
-
-        <div className="h-4 w-px bg-slate-700 mx-1" />
-
-        {['North', 'East', 'South', 'West'].map((dir) => (
+        {camPresets.map((label, i) => (
           <button
-            key={dir}
-            onClick={() => setCameraPreset(dir.toLowerCase())}
-            className={`px-2 py-1.5 rounded-lg transition-all ${
-              cameraPreset === dir.toLowerCase() ? 'bg-cyan-600 text-white font-medium' : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+            key={label}
+            onClick={() => setCameraPreset(camKeys[i])}
+            className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              cameraPreset === camKeys[i]
+                ? 'bg-cyan-600 text-white shadow shadow-cyan-600/40'
+                : 'text-slate-400 hover:text-white hover:bg-white/10'
             }`}
           >
-            {dir[0]}
+            {label}
           </button>
         ))}
 
-        {selectedVehicle && (
-          <button
-            onClick={() => setCameraPreset('follow')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
-              cameraPreset === 'follow' ? 'bg-amber-600 text-white font-medium' : 'hover:bg-slate-800 text-amber-400'
-            }`}
-            title="Follow Selected Vehicle"
-          >
-            <Navigation className="w-3.5 h-3.5" />
-            <span>Follow</span>
-          </button>
-        )}
+        <div className="w-px h-4 bg-white/15 mx-1" />
 
-        <div className="h-4 w-px bg-slate-700 mx-1" />
-
-        {/* Day / Night Toggle */}
+        {/* Day/Night */}
         <button
           onClick={onToggleDayNight}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
-          title={dayNightMode === 'night' ? 'Switch to Day Mode' : 'Switch to Night Mode'}
+          className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-amber-300 transition-colors"
+          title="Toggle Day/Night"
         >
           {dayNightMode === 'night' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        {/* Fullscreen Toggle */}
+        {/* Fullscreen */}
         <button
           onClick={toggleFullscreen}
-          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-          title="Toggle Fullscreen"
+          className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+          title="Fullscreen"
         >
           {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
         </button>

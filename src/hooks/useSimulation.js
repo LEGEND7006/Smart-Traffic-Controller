@@ -57,8 +57,13 @@ export function useSimulation() {
     rfidSimulator.cancelRequest(requestId);
   }, []);
 
+  const clearEmergencyVehicles = useCallback(() => {
+    simulationEngine.clearEmergencyVehicles();
+  }, []);
+
   const clearAllEmergencies = useCallback(() => {
     rfidSimulator.clearAll();
+    simulationEngine.clearEmergencyVehicles();
   }, []);
 
   return {
@@ -75,6 +80,7 @@ export function useSimulation() {
     clearSelectedVehicle,
     manualTriggerEmergency,
     cancelEmergency,
-    clearAllEmergencies
+    clearAllEmergencies,
+    clearEmergencyVehicles
   };
 }

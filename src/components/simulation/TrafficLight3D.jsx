@@ -1,108 +1,88 @@
 /**
  * Adaptive FairFlow - 3D Traffic Signal Assembly
- * 
- * Accurately models a triple-aspect traffic light fixture with physical visors,
- * emissive state-driven lamps, and approach indicators.
+ * No Drei Text — uses meshes only for maximum compatibility.
  */
 
 import React from 'react';
-import { Text } from '@react-three/drei';
 
 export function TrafficLight3D({ position, rotation = [0, 0, 0], signal = 'RED', approach = 'NORTH' }) {
-  const isRed = signal === 'RED';
+  const isRed    = signal === 'RED';
   const isYellow = signal === 'YELLOW';
-  const isGreen = signal === 'GREEN';
-
-  const redEmissive = isRed ? '#ff1e1e' : '#220000';
-  const yellowEmissive = isYellow ? '#ffb703' : '#2b1c00';
-  const greenEmissive = isGreen ? '#00f59b' : '#002613';
+  const isGreen  = signal === 'GREEN';
 
   return (
     <group position={position} rotation={rotation}>
-      {/* Supporting Mast / Pole */}
+      {/* Pole */}
       <mesh position={[0, 2.5, 0]} castShadow>
-        <cylinderGeometry args={[0.1, 0.12, 5.0, 12]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.3} />
+        <cylinderGeometry args={[0.1, 0.13, 5.0, 10]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.75} roughness={0.3} />
       </mesh>
 
-      {/* Horizontal boom arm extending over curb */}
-      <mesh position={[0.7, 4.8, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-        <cylinderGeometry args={[0.07, 0.07, 1.4, 8]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.3} />
+      {/* Arm */}
+      <mesh position={[0.65, 4.8, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.06, 0.06, 1.3, 8]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.75} />
       </mesh>
 
-      {/* Signal Housing (Dark Matte Box) */}
-      <mesh position={[1.4, 4.8, 0]} castShadow>
-        <boxGeometry args={[0.6, 1.8, 0.5]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.6} />
+      {/* Housing */}
+      <mesh position={[1.3, 4.8, 0]} castShadow>
+        <boxGeometry args={[0.55, 1.75, 0.45]} />
+        <meshStandardMaterial color="#0b1020" roughness={0.6} />
       </mesh>
 
-      {/* Visors / Cowls */}
-      {[-0.55, 0, 0.55].map((yOffset, i) => (
-        <mesh key={`visor-${i}`} position={[1.4, 4.8 + yOffset, 0.26]} rotation={[0.2, 0, 0]}>
-          <boxGeometry args={[0.38, 0.12, 0.22]} />
+      {/* Visors */}
+      {[-0.54, 0, 0.54].map((yOff, i) => (
+        <mesh key={i} position={[1.3, 4.8 + yOff, 0.24]} rotation={[0.18, 0, 0]}>
+          <boxGeometry args={[0.36, 0.1, 0.18]} />
           <meshStandardMaterial color="#020617" />
         </mesh>
       ))}
 
-      {/* Red Lamp */}
-      <mesh position={[1.4, 5.35, 0.24]}>
-        <sphereGeometry args={[0.16, 16, 16]} />
+      {/* RED lamp */}
+      <mesh position={[1.3, 5.34, 0.22]}>
+        <sphereGeometry args={[0.155, 14, 14]} />
         <meshStandardMaterial
-          color={isRed ? '#ff2b2b' : '#330808'}
-          emissive={redEmissive}
-          emissiveIntensity={isRed ? 4.5 : 0.2}
+          color={isRed ? '#ff2b2b' : '#2a0a0a'}
+          emissive={isRed ? '#ff2b2b' : '#000'}
+          emissiveIntensity={isRed ? 4 : 0}
           roughness={0.2}
         />
       </mesh>
-      {isRed && (
-        <pointLight position={[1.4, 5.35, 0.8]} intensity={8} distance={10} color="#ff2b2b" />
-      )}
+      {isRed && <pointLight position={[1.3, 5.34, 0.8]} intensity={10} distance={9} color="#ff2b2b" />}
 
-      {/* Yellow Lamp */}
-      <mesh position={[1.4, 4.8, 0.24]}>
-        <sphereGeometry args={[0.16, 16, 16]} />
+      {/* YELLOW lamp */}
+      <mesh position={[1.3, 4.8, 0.22]}>
+        <sphereGeometry args={[0.155, 14, 14]} />
         <meshStandardMaterial
-          color={isYellow ? '#ffb703' : '#332400'}
-          emissive={yellowEmissive}
-          emissiveIntensity={isYellow ? 4.5 : 0.2}
+          color={isYellow ? '#ffb703' : '#2b1c00'}
+          emissive={isYellow ? '#ffb703' : '#000'}
+          emissiveIntensity={isYellow ? 4 : 0}
           roughness={0.2}
         />
       </mesh>
-      {isYellow && (
-        <pointLight position={[1.4, 4.8, 0.8]} intensity={8} distance={10} color="#ffb703" />
-      )}
+      {isYellow && <pointLight position={[1.3, 4.8, 0.8]} intensity={10} distance={9} color="#ffb703" />}
 
-      {/* Green Lamp */}
-      <mesh position={[1.4, 4.25, 0.24]}>
-        <sphereGeometry args={[0.16, 16, 16]} />
+      {/* GREEN lamp */}
+      <mesh position={[1.3, 4.26, 0.22]}>
+        <sphereGeometry args={[0.155, 14, 14]} />
         <meshStandardMaterial
-          color={isGreen ? '#00f59b' : '#003319'}
-          emissive={greenEmissive}
-          emissiveIntensity={isGreen ? 4.5 : 0.2}
+          color={isGreen ? '#00f59b' : '#003316'}
+          emissive={isGreen ? '#00f59b' : '#000'}
+          emissiveIntensity={isGreen ? 4 : 0}
           roughness={0.2}
         />
       </mesh>
-      {isGreen && (
-        <pointLight position={[1.4, 4.25, 0.8]} intensity={8} distance={10} color="#00f59b" />
-      )}
+      {isGreen && <pointLight position={[1.3, 4.26, 0.8]} intensity={10} distance={9} color="#00f59b" />}
 
-      {/* Direction & Status Plate */}
-      <group position={[1.4, 3.6, 0]}>
-        <mesh>
-          <boxGeometry args={[0.8, 0.35, 0.08]} />
-          <meshStandardMaterial color="#0f172a" />
-        </mesh>
-        <Text
-          position={[0, 0, 0.06]}
-          fontSize={0.2}
+      {/* Small label plate — colored box only (no Text) */}
+      <mesh position={[1.3, 3.6, 0]}>
+        <boxGeometry args={[0.7, 0.28, 0.06]} />
+        <meshStandardMaterial
           color={isGreen ? '#10b981' : isYellow ? '#f59e0b' : '#ef4444'}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {`${approach} [${signal}]`}
-        </Text>
-      </group>
+          emissive={isGreen ? '#10b981' : isYellow ? '#f59e0b' : '#ef4444'}
+          emissiveIntensity={0.8}
+        />
+      </mesh>
     </group>
   );
 }

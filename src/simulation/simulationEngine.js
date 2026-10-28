@@ -151,17 +151,27 @@ export class SimulationEngine {
    * Spawn a specific vehicle
    */
   spawnVehicle(type = VEHICLE_TYPES.CAR, approach = 'NORTH', turnType = 'STRAIGHT', isEmergency = false) {
-    // Avoid spawning directly on top of an existing vehicle at the approach origin
-    const existingAtOrigin = this.vehicles.some(v => {
+    // Inline spawn coordinates (mirrors vehicleRoutes.js generateRoute startPos)
+    // NORTH: x=-2.4, z=+48 | SOUTH: x=+2.4, z=-48 | EAST: x=+48, z=+2.4 | WEST: x=-48, z=-2.4
+    const SPAWN_POS = {
+      NORTH: { x: -2.4, z: 48 },
+      SOUTH: { x:  2.4, z: -48 },
+      EAST:  { x:  48,  z: 2.4 },
+      WEST:  { x: -48,  z: -2.4 },
+    };
+    const sp = SPAWN_POS[approach] || { x: 0, z: 0 };
+
+    // Block spawn if another vehicle is already within 8 units of the entry point
+    const tooClose = this.vehicles.some(v => {
       if (v.approach !== approach) return false;
       const dist = Math.sqrt(
-        Math.pow(v.position.x, 2) + Math.pow(v.position.z, 2)
+        Math.pow(v.position.x - sp.x, 2) + Math.pow(v.position.z - sp.z, 2)
       );
-      return dist > 40.0;
+      return dist < 8.0;
     });
 
-    if (existingAtOrigin && !isEmergency) {
-      return null; // road entrance congested, skip spawn tick
+    if (tooClose && !isEmergency) {
+      return null; // road entrance congested, skip this spawn tick
     }
 
     const veh = createVehicle(type, approach, turnType, isEmergency);
@@ -176,11 +186,28 @@ export class SimulationEngine {
    * High priority emergency ambulance dispatch
    */
   dispatchAmbulance(approach = 'EAST') {
+    // Limit simultaneous ambulances on scene to avoid pile-up
+    const activeAmbs = this.vehicles.filter(v => v.isEmergency);
+    if (activeAmbs.length >= 3) {
+      this.logEvent('EMERGENCY', 'Dispatch rejected: maximum simultaneous emergency vehicles (3) already active.', { approach });
+      return null;
+    }
     const amb = this.spawnVehicle(VEHICLE_TYPES.AMBULANCE, approach, 'STRAIGHT', true);
     if (amb) {
       this.logEvent('EMERGENCY', `PRIORITY ALERT: Emergency Ambulance ${amb.id} dispatched on ${approach} corridor.`, { approach, vehicleId: amb.id });
     }
     return amb;
+  }
+
+  /**
+   * Clear all emergency ambulances currently on the road
+   */
+  clearEmergencyVehicles() {
+    const count = this.vehicles.filter(v => v.isEmergency).length;
+    this.vehicles = this.vehicles.filter(v => !v.isEmergency);
+    rfidSimulator.clearAll();
+    this.logEvent('EMERGENCY', `Cleared ${count} emergency vehicle(s) and reset RFID preemption states.`);
+    this.notifySubscribers();
   }
 
   /**
@@ -338,6 +365,12 @@ export class SimulationEngine {
     if (this.selectedVehicle) {
       const updated = this.vehicles.find(v => v.id === this.selectedVehicle.id);
       this.selectedVehicle = updated || null;
+    }
+
+    // Notify 2D dashboard subscribers ~every 15 frames (avoids hammering React state)
+    this._tickCount = (this._tickCount || 0) + 1;
+    if (this._tickCount % 15 === 0) {
+      this.notifySubscribers();
     }
   }
 

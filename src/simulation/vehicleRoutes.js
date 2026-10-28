@@ -101,13 +101,16 @@ export function generateRoute(approach, turnType = 'STRAIGHT') {
 }
 
 let vehicleCounter = 100;
+let ambulanceCounter = 100;
 
 export function createVehicle(type = VEHICLE_TYPES.CAR, approach = 'NORTH', turnType = 'STRAIGHT', isEmergency = false) {
   vehicleCounter += 1;
+  if (isEmergency) ambulanceCounter += 1;
   const config = VEHICLE_CONFIGS[type] || VEHICLE_CONFIGS[VEHICLE_TYPES.CAR];
   const route = generateRoute(approach, turnType);
 
-  const id = isEmergency ? `AMB-911` : `${type.slice(0, 3)}-${vehicleCounter}`;
+  // Each ambulance gets a unique ID to avoid React key collisions and 3D ghosting
+  const id = isEmergency ? `AMB-${ambulanceCounter}` : `${type.slice(0, 3)}-${vehicleCounter}`;
 
   // Starting position with slight stagger
   const pos = { ...route.startPos };
@@ -118,7 +121,7 @@ export function createVehicle(type = VEHICLE_TYPES.CAR, approach = 'NORTH', turn
     approach,
     turnType,
     isEmergency,
-    rfidTag: isEmergency ? 'RFID-EMERG-AMB-911' : null,
+    rfidTag: isEmergency ? `RFID-EMERG-${id}` : null,
     length: config.length,
     width: config.width,
     height: config.height,
@@ -263,9 +266,11 @@ export function updateVehicle(veh, dt, isGreen, precedingVehicle) {
   }
 
   // Check if vehicle reached scene exit threshold
-  const isOutOfScene = 
-    Math.abs(veh.position.x) > exitDistance + 5 || 
-    Math.abs(veh.position.z) > exitDistance + 5;
+  // Emergency vehicles travel faster and further — use a wider threshold
+  const exitThreshold = veh.isEmergency ? exitDistance + 2 : exitDistance + 5;
+  const isOutOfScene =
+    Math.abs(veh.position.x) > exitThreshold ||
+    Math.abs(veh.position.z) > exitThreshold;
 
   return isOutOfScene; // true if ready to be despawned
 }

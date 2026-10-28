@@ -68,13 +68,24 @@ export function EmergencyQuickPanel({
         </div>
 
         <div className="flex flex-col justify-end gap-2">
-          <button
-            onClick={() => onDispatchAmbulance(approach)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition-all"
-          >
-            <Siren className="w-4 h-4 animate-bounce" />
-            <span>Spawn Ambulance on {approach}</span>
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => onDispatchAmbulance(approach)}
+              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition-all"
+            >
+              <Siren className="w-4 h-4 animate-bounce" />
+              <span>Spawn {approach}</span>
+            </button>
+
+            <button
+              onClick={onClearAll}
+              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-700/50 transition-all"
+              title="Clear all emergency vehicles & reset preemption"
+            >
+              <XCircle className="w-4 h-4 text-rose-400" />
+              <span>Clear Road</span>
+            </button>
+          </div>
 
           <button
             onClick={() => onManualTrigger(approach)}
